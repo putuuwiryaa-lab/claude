@@ -9,10 +9,10 @@ type Position = (typeof positions)[number];
 type WeightSet = {
   name: string;
   position: number;
-  global: number;
   recent: number;
-  gap: number;
-  momentum: number;
+  transition: number;
+  delta: number;
+  cycle: number;
 };
 
 type RankItem = { digit: string; score: number; count: number };
@@ -32,18 +32,16 @@ const TRAIN_SIZE = FIXED_LIMIT - TEST_SIZE;
 const indexMap: Record<Position, number> = { as: 0, kop: 1, kepala: 2, ekor: 3 };
 
 const candidateWeights: WeightSet[] = [
-  { name: "Balanced A", position: 0.4, global: 0.15, recent: 0.2, gap: 0.1, momentum: 0.15 },
-  { name: "Balanced B", position: 0.35, global: 0.15, recent: 0.25, gap: 0.1, momentum: 0.15 },
-  { name: "Position Strong", position: 0.5, global: 0.15, recent: 0.15, gap: 0.05, momentum: 0.15 },
-  { name: "Position Safe", position: 0.45, global: 0.2, recent: 0.15, gap: 0.05, momentum: 0.15 },
-  { name: "Recent Strong", position: 0.3, global: 0.1, recent: 0.35, gap: 0.1, momentum: 0.15 },
-  { name: "Recent Momentum", position: 0.25, global: 0.1, recent: 0.35, gap: 0.05, momentum: 0.25 },
-  { name: "Momentum Strong", position: 0.3, global: 0.1, recent: 0.2, gap: 0.1, momentum: 0.3 },
-  { name: "Gap Support", position: 0.35, global: 0.1, recent: 0.2, gap: 0.2, momentum: 0.15 },
-  { name: "Global Support", position: 0.35, global: 0.25, recent: 0.2, gap: 0.05, momentum: 0.15 },
-  { name: "Lean Recent", position: 0.35, global: 0.1, recent: 0.3, gap: 0.05, momentum: 0.2 },
-  { name: "Lean Stable", position: 0.45, global: 0.2, recent: 0.2, gap: 0.05, momentum: 0.1 },
-  { name: "Equal Core", position: 0.3, global: 0.2, recent: 0.25, gap: 0.1, momentum: 0.15 }
+  { name: "Balanced Movement", position: 0.3, recent: 0.2, transition: 0.25, delta: 0.15, cycle: 0.1 },
+  { name: "Position Anchor", position: 0.45, recent: 0.15, transition: 0.2, delta: 0.1, cycle: 0.1 },
+  { name: "Transition Strong", position: 0.25, recent: 0.15, transition: 0.35, delta: 0.15, cycle: 0.1 },
+  { name: "Delta Strong", position: 0.25, recent: 0.15, transition: 0.2, delta: 0.3, cycle: 0.1 },
+  { name: "Cycle Support", position: 0.3, recent: 0.15, transition: 0.2, delta: 0.15, cycle: 0.2 },
+  { name: "Recent Transition", position: 0.25, recent: 0.3, transition: 0.3, delta: 0.1, cycle: 0.05 },
+  { name: "Recent Delta", position: 0.25, recent: 0.3, transition: 0.15, delta: 0.25, cycle: 0.05 },
+  { name: "Stable Position", position: 0.4, recent: 0.2, transition: 0.2, delta: 0.1, cycle: 0.1 },
+  { name: "Movement Aggressive", position: 0.2, recent: 0.2, transition: 0.3, delta: 0.2, cycle: 0.1 },
+  { name: "Cycle Movement", position: 0.25, recent: 0.15, transition: 0.25, delta: 0.15, cycle: 0.2 }
 ];
 
 function zero(): Record<string, number> {
@@ -63,113 +61,107 @@ function round1(value: number) {
 }
 
 function positionCounts(results: string[]) {
-  const counts: Record<Position, Record<string, number>> = {
-    as: zero(),
-    kop: zero(),
-    kepala: zero(),
-    ekor: zero()
-  };
-
-  for (const result of results) {
-    for (const pos of positions) counts[pos][result[indexMap[pos]]] += 1;
-  }
-
-  return counts;
-}
-
-function globalCounts(results: string[]) {
-  const counts = zero();
-  for (const result of results) for (const digit of result) counts[digit] += 1;
+  const counts: Record<Position, Record<string, number>> = { as: zero(), kop: zero(), kepala: zero(), ekor: zero() };
+  for (const result of results) for (const pos of positions) counts[pos][result[indexMap[pos]]] += 1;
   return counts;
 }
 
 function recentScores(results: string[]) {
-  const scores: Record<Position, Record<string, number>> = {
-    as: zero(),
-    kop: zero(),
-    kepala: zero(),
-    ekor: zero()
-  };
-
+  const scores: Record<Position, Record<string, number>> = { as: zero(), kop: zero(), kepala: zero(), ekor: zero() };
   const length = results.length;
   results.forEach((result, index) => {
     const age = length - index;
     const weight = 1 / age;
     for (const pos of positions) scores[pos][result[indexMap[pos]]] += weight;
   });
-
   return scores;
 }
 
-function gapScores(results: string[]) {
-  const scores: Record<Position, Record<string, number>> = {
-    as: zero(),
-    kop: zero(),
-    kepala: zero(),
-    ekor: zero()
-  };
+function transitionScores(results: string[]) {
+  const scores: Record<Position, Record<string, number>> = { as: zero(), kop: zero(), kepala: zero(), ekor: zero() };
+  if (results.length < 2) return scores;
+
+  for (const pos of positions) {
+    const lastDigit = results[results.length - 1][indexMap[pos]];
+    for (let i = 0; i < results.length - 1; i += 1) {
+      const current = results[i][indexMap[pos]];
+      const next = results[i + 1][indexMap[pos]];
+      if (current === lastDigit) scores[pos][next] += 1;
+    }
+  }
+  return scores;
+}
+
+function deltaScores(results: string[]) {
+  const scores: Record<Position, Record<string, number>> = { as: zero(), kop: zero(), kepala: zero(), ekor: zero() };
+  if (results.length < 2) return scores;
+
+  for (const pos of positions) {
+    const deltaFreq = zero();
+    for (let i = 0; i < results.length - 1; i += 1) {
+      const a = Number(results[i][indexMap[pos]]);
+      const b = Number(results[i + 1][indexMap[pos]]);
+      const delta = String((b - a + 10) % 10);
+      deltaFreq[delta] += 1;
+    }
+
+    const last = Number(results[results.length - 1][indexMap[pos]]);
+    for (const delta of digits) {
+      const nextDigit = String((last + Number(delta)) % 10);
+      scores[pos][nextDigit] += deltaFreq[delta];
+    }
+  }
+  return scores;
+}
+
+function cycleScores(results: string[]) {
+  const scores: Record<Position, Record<string, number>> = { as: zero(), kop: zero(), kepala: zero(), ekor: zero() };
 
   for (const pos of positions) {
     for (const digit of digits) {
-      let gap = results.length;
-      for (let index = results.length - 1; index >= 0; index -= 1) {
-        if (results[index][indexMap[pos]] === digit) {
-          gap = results.length - 1 - index;
-          break;
-        }
+      const indexes: number[] = [];
+      results.forEach((result, index) => {
+        if (result[indexMap[pos]] === digit) indexes.push(index);
+      });
+
+      if (indexes.length < 2) {
+        scores[pos][digit] = indexes.length === 0 ? 0 : 1;
+        continue;
       }
-      scores[pos][digit] = gap;
+
+      const gaps: number[] = [];
+      for (let i = 0; i < indexes.length - 1; i += 1) gaps.push(indexes[i + 1] - indexes[i]);
+      const avgGap = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+      const currentGap = results.length - 1 - indexes[indexes.length - 1];
+      const ratio = avgGap > 0 ? currentGap / avgGap : 0;
+      scores[pos][digit] = Math.min(2, ratio);
     }
   }
-
-  return scores;
-}
-
-function momentumScores(results: string[]) {
-  const short = results.slice(Math.max(0, results.length - 10));
-  const shortCounts = positionCounts(short);
-  const longCounts = positionCounts(results);
-  const scores: Record<Position, Record<string, number>> = {
-    as: zero(),
-    kop: zero(),
-    kepala: zero(),
-    ekor: zero()
-  };
-
-  for (const pos of positions) {
-    for (const digit of digits) {
-      const shortRate = short.length ? shortCounts[pos][digit] / short.length : 0;
-      const longRate = results.length ? longCounts[pos][digit] / results.length : 0;
-      scores[pos][digit] = Math.max(0, shortRate - longRate);
-    }
-  }
-
   return scores;
 }
 
 function rankWithWeights(results: string[], weights: WeightSet) {
   const pc = positionCounts(results);
-  const gc = globalCounts(results);
   const rs = recentScores(results);
-  const gs = gapScores(results);
-  const ms = momentumScores(results);
-  const maxGlobal = maxValue(gc);
-
+  const ts = transitionScores(results);
+  const ds = deltaScores(results);
+  const cs = cycleScores(results);
   const scores: Record<Position, RankItem[]> = { as: [], kop: [], kepala: [], ekor: [] };
 
   for (const pos of positions) {
     const maxPos = maxValue(pc[pos]);
     const maxRecent = maxValue(rs[pos]);
-    const maxGap = maxValue(gs[pos]);
-    const maxMomentum = maxValue(ms[pos]);
+    const maxTransition = maxValue(ts[pos]);
+    const maxDelta = maxValue(ds[pos]);
+    const maxCycle = maxValue(cs[pos]);
 
     scores[pos] = digits.map((digit) => {
       const raw =
         norm(pc[pos][digit], maxPos) * weights.position +
-        norm(gc[digit], maxGlobal) * weights.global +
         norm(rs[pos][digit], maxRecent) * weights.recent +
-        norm(gs[pos][digit], maxGap) * weights.gap +
-        norm(ms[pos][digit], maxMomentum) * weights.momentum;
+        norm(ts[pos][digit], maxTransition) * weights.transition +
+        norm(ds[pos][digit], maxDelta) * weights.delta +
+        norm(cs[pos][digit], maxCycle) * weights.cycle;
 
       return { digit, score: round1(raw * 100), count: pc[pos][digit] };
     }).sort((a, b) => {
@@ -178,7 +170,6 @@ function rankWithWeights(results: string[], weights: WeightSet) {
       return Number(a.digit) - Number(b.digit);
     });
   }
-
   return scores;
 }
 
@@ -214,25 +205,17 @@ function evaluatePositionWeights(data: string[], pos: Position, weights: WeightS
   const stability = Math.max(0, 100 - (Math.max(...blockRates) - Math.min(...blockRates)));
   const finalScore = rankScore * 0.5 + top3Rate * 0.25 + top5Rate * 0.2 + stability * 0.05;
 
-  return {
-    position: pos,
-    method: weights.name,
-    rank_score: round1(rankScore),
-    top3_hit_rate: round1(top3Rate),
-    top5_hit_rate: round1(top5Rate),
-    stability: round1(stability),
-    final_score: round1(finalScore)
-  };
+  return { position: pos, method: weights.name, rank_score: round1(rankScore), top3_hit_rate: round1(top3Rate), top5_hit_rate: round1(top5Rate), stability: round1(stability), final_score: round1(finalScore) };
 }
 
 function formatWeights(weights: WeightSet) {
   return {
     method: weights.name,
     position_frequency: `${Math.round(weights.position * 100)}%`,
-    global_frequency: `${Math.round(weights.global * 100)}%`,
     recency: `${Math.round(weights.recent * 100)}%`,
-    gap_absen: `${Math.round(weights.gap * 100)}%`,
-    momentum: `${Math.round(weights.momentum * 100)}%`
+    transition_markov: `${Math.round(weights.transition * 100)}%`,
+    delta_pattern: `${Math.round(weights.delta * 100)}%`,
+    cycle_due: `${Math.round(weights.cycle * 100)}%`
   };
 }
 
@@ -266,7 +249,7 @@ export function scanPoltar4D(historyData: string) {
   }
 
   return {
-    engine: "Poltar Walk Forward Engine v3",
+    engine: "Poltar Walk Forward Engine v4",
     total_data: all.length,
     sample_used: usableData.length,
     fixed_limit: FIXED_LIMIT,
