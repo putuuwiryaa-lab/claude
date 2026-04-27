@@ -6,14 +6,15 @@ const digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 const positions = ["as", "kop", "kepala", "ekor"] as const;
 type Position = (typeof positions)[number];
 
-type Mode = "aman" | "campuran" | "agresif";
-
+const FIXED_LIMIT = 169;
 const indexMap: Record<Position, number> = { as: 0, kop: 1, kepala: 2, ekor: 3 };
 
 const weights = {
-  aman: { position: 0.5, global: 0.2, recent: 0.15, gap: 0.05, momentum: 0.1 },
-  campuran: { position: 0.4, global: 0.15, recent: 0.2, gap: 0.1, momentum: 0.15 },
-  agresif: { position: 0.25, global: 0.1, recent: 0.35, gap: 0.1, momentum: 0.2 }
+  position: 0.4,
+  global: 0.15,
+  recent: 0.2,
+  gap: 0.1,
+  momentum: 0.15
 };
 
 function zero(): Record<string, number> {
@@ -113,15 +114,14 @@ function momentumScores(results: string[]) {
   return scores;
 }
 
-export function scanPoltar4D(historyData: string, limit = 50, mode: Mode = "campuran") {
+export function scanPoltar4D(historyData: string) {
   const all = parseHistory(historyData);
-  const sample = all.slice(0, Math.max(1, Math.min(limit, all.length || limit)));
+  const sample = all.slice(0, Math.min(FIXED_LIMIT, all.length));
   const pc = positionCounts(sample);
   const gc = globalCounts(sample);
   const rs = recentScores(sample);
   const gs = gapScores(sample);
   const ms = momentumScores(sample);
-  const w = weights[mode] || weights.campuran;
   const maxGlobal = maxValue(gc);
 
   const scores: Record<Position, Array<{ digit: string; score: number; count: number }>> = {
@@ -139,11 +139,11 @@ export function scanPoltar4D(historyData: string, limit = 50, mode: Mode = "camp
 
     scores[pos] = digits.map((digit) => {
       const raw =
-        norm(pc[pos][digit], maxPos) * w.position +
-        norm(gc[digit], maxGlobal) * w.global +
-        norm(rs[pos][digit], maxRecent) * w.recent +
-        norm(gs[pos][digit], maxGap) * w.gap +
-        norm(ms[pos][digit], maxMomentum) * w.momentum;
+        norm(pc[pos][digit], maxPos) * weights.position +
+        norm(gc[digit], maxGlobal) * weights.global +
+        norm(rs[pos][digit], maxRecent) * weights.recent +
+        norm(gs[pos][digit], maxGap) * weights.gap +
+        norm(ms[pos][digit], maxMomentum) * weights.momentum;
 
       return { digit, score: round(raw), count: pc[pos][digit] };
     }).sort((a, b) => {
@@ -155,9 +155,9 @@ export function scanPoltar4D(historyData: string, limit = 50, mode: Mode = "camp
 
   return {
     engine: "Poltar 4D Engine v1",
-    mode,
     total_data: all.length,
     sample_used: sample.length,
+    fixed_limit: FIXED_LIMIT,
     latest_result: all[0] || null,
     poltar: {
       as: scores.as.map((item) => item.digit).join(" "),
@@ -166,6 +166,12 @@ export function scanPoltar4D(historyData: string, limit = 50, mode: Mode = "camp
       ekor: scores.ekor.map((item) => item.digit).join(" ")
     },
     scores,
-    weights: w
+    weights: {
+      position_frequency: "40%",
+      global_frequency: "15%",
+      recency: "20%",
+      gap_absen: "10%",
+      momentum: "15%"
+    }
   };
 }
