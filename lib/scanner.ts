@@ -15,6 +15,17 @@ type WeightSet = {
   momentum: number;
 };
 
+type RankItem = { digit: string; score: number; count: number };
+type TestResult = {
+  position: Position;
+  method: string;
+  rank_score: number;
+  top3_hit_rate: number;
+  top5_hit_rate: number;
+  stability: number;
+  final_score: number;
+};
+
 const FIXED_LIMIT = 169;
 const TEST_SIZE = 14;
 const TRAIN_SIZE = FIXED_LIMIT - TEST_SIZE;
@@ -60,9 +71,7 @@ function positionCounts(results: string[]) {
   };
 
   for (const result of results) {
-    for (const pos of positions) {
-      counts[pos][result[indexMap[pos]]] += 1;
-    }
+    for (const pos of positions) counts[pos][result[indexMap[pos]]] += 1;
   }
 
   return counts;
@@ -70,9 +79,7 @@ function positionCounts(results: string[]) {
 
 function globalCounts(results: string[]) {
   const counts = zero();
-  for (const result of results) {
-    for (const digit of result) counts[digit] += 1;
-  }
+  for (const result of results) for (const digit of result) counts[digit] += 1;
   return counts;
 }
 
@@ -148,12 +155,7 @@ function rankWithWeights(results: string[], weights: WeightSet) {
   const ms = momentumScores(results);
   const maxGlobal = maxValue(gc);
 
-  const scores: Record<Position, Array<{ digit: string; score: number; count: number }>> = {
-    as: [],
-    kop: [],
-    kepala: [],
-    ekor: []
-  };
+  const scores: Record<Position, RankItem[]> = { as: [], kop: [], kepala: [], ekor: [] };
 
   for (const pos of positions) {
     const maxPos = maxValue(pc[pos]);
@@ -180,56 +182,46 @@ function rankWithWeights(results: string[], weights: WeightSet) {
   return scores;
 }
 
-function evaluateWeights(data: string[], weights: WeightSet) {
-  const steps = Math.max(0, data.length - TRAIN_SIZE);
+function evaluatePositionWeights(data: string[], pos: Position, weights: WeightSet): TestResult {
+  const start = Math.min(TRAIN_SIZE, Math.max(0, data.length - TEST_SIZE));
+  const steps = Math.max(0, data.length - start);
   let rankPoints = 0;
   let top3Hits = 0;
   let top5Hits = 0;
-  const positionTop5: Record<Position, number> = { as: 0, kop: 0, kepala: 0, ekor: 0 };
   const blockScores = [0, 0, 0];
   const blockMax = [0, 0, 0];
 
-  for (let targetIndex = TRAIN_SIZE; targetIndex < data.length; targetIndex += 1) {
+  for (let targetIndex = start; targetIndex < data.length; targetIndex += 1) {
     const train = data.slice(0, targetIndex);
-    const target = data[targetIndex];
-    const ranking = rankWithWeights(train, weights);
-    const block = Math.min(2, Math.floor(((targetIndex - TRAIN_SIZE) * 3) / Math.max(1, steps)));
+    const targetDigit = data[targetIndex][indexMap[pos]];
+    const ranking = rankWithWeights(train, weights)[pos];
+    const rankIndex = ranking.findIndex((item) => item.digit === targetDigit);
+    const points = rankIndex >= 0 ? 10 - rankIndex : 0;
+    const block = Math.min(2, Math.floor(((targetIndex - start) * 3) / Math.max(1, steps)));
 
-    for (const pos of positions) {
-      const targetDigit = target[indexMap[pos]];
-      const rankIndex = ranking[pos].findIndex((item) => item.digit === targetDigit);
-      const points = rankIndex >= 0 ? 10 - rankIndex : 0;
-      rankPoints += points;
-      blockScores[block] += points;
-      blockMax[block] += 10;
-      if (rankIndex >= 0 && rankIndex < 3) top3Hits += 1;
-      if (rankIndex >= 0 && rankIndex < 5) {
-        top5Hits += 1;
-        positionTop5[pos] += 1;
-      }
-    }
+    rankPoints += points;
+    blockScores[block] += points;
+    blockMax[block] += 10;
+    if (rankIndex >= 0 && rankIndex < 3) top3Hits += 1;
+    if (rankIndex >= 0 && rankIndex < 5) top5Hits += 1;
   }
 
-  const maxRankPoints = Math.max(1, steps * positions.length * 10);
-  const totalChecks = Math.max(1, steps * positions.length);
+  const maxRankPoints = Math.max(1, steps * 10);
   const rankScore = (rankPoints / maxRankPoints) * 100;
-  const top3Rate = (top3Hits / totalChecks) * 100;
-  const top5Rate = (top5Hits / totalChecks) * 100;
+  const top3Rate = (top3Hits / Math.max(1, steps)) * 100;
+  const top5Rate = (top5Hits / Math.max(1, steps)) * 100;
   const blockRates = blockScores.map((score, index) => (blockMax[index] ? (score / blockMax[index]) * 100 : rankScore));
   const stability = Math.max(0, 100 - (Math.max(...blockRates) - Math.min(...blockRates)));
-  const posRates = positions.map((pos) => (positionTop5[pos] / Math.max(1, steps)) * 100);
-  const balance = Math.max(0, 100 - (Math.max(...posRates) - Math.min(...posRates)));
-  const finalScore = rankScore * 0.4 + top3Rate * 0.25 + top5Rate * 0.2 + stability * 0.1 + balance * 0.05;
+  const finalScore = rankScore * 0.5 + top3Rate * 0.25 + top5Rate * 0.2 + stability * 0.05;
 
   return {
+    position: pos,
     method: weights.name,
     rank_score: round1(rankScore),
     top3_hit_rate: round1(top3Rate),
     top5_hit_rate: round1(top5Rate),
     stability: round1(stability),
-    balance: round1(balance),
-    final_score: round1(finalScore),
-    position_top5: Object.fromEntries(positions.map((pos) => [pos, round1((positionTop5[pos] / Math.max(1, steps)) * 100)]))
+    final_score: round1(finalScore)
   };
 }
 
@@ -248,29 +240,41 @@ export function scanPoltar4D(historyData: string) {
   const all = parseHistory(historyData);
   const fixedData = all.slice(-FIXED_LIMIT);
   const usableData = fixedData.length >= 30 ? fixedData : all;
-  const evaluations = candidateWeights.map((weights) => ({ weights, test: evaluateWeights(usableData, weights) }));
-  evaluations.sort((a, b) => b.test.final_score - a.test.final_score);
-  const best = evaluations[0] || { weights: candidateWeights[0], test: evaluateWeights(usableData, candidateWeights[0]) };
-  const scores = rankWithWeights(usableData, best.weights);
+
+  const positionMethods: Record<Position, { weights: ReturnType<typeof formatWeights>; test: TestResult; leaderboard: TestResult[] }> = {
+    as: {} as any,
+    kop: {} as any,
+    kepala: {} as any,
+    ekor: {} as any
+  };
+  const poltar: Record<Position, string> = { as: "", kop: "", kepala: "", ekor: "" };
+  const scores: Record<Position, RankItem[]> = { as: [], kop: [], kepala: [], ekor: [] };
+
+  for (const pos of positions) {
+    const evaluations = candidateWeights.map((weights) => ({ weights, test: evaluatePositionWeights(usableData, pos, weights) }));
+    evaluations.sort((a, b) => b.test.final_score - a.test.final_score);
+    const best = evaluations[0];
+    const ranking = rankWithWeights(usableData, best.weights)[pos];
+
+    positionMethods[pos] = {
+      weights: formatWeights(best.weights),
+      test: best.test,
+      leaderboard: evaluations.slice(0, 5).map((item) => item.test)
+    };
+    scores[pos] = ranking;
+    poltar[pos] = ranking.map((item) => item.digit).join(" ");
+  }
 
   return {
-    engine: "Poltar Walk Forward Engine v2",
+    engine: "Poltar Walk Forward Engine v3",
     total_data: all.length,
     sample_used: usableData.length,
     fixed_limit: FIXED_LIMIT,
     train_size: Math.min(TRAIN_SIZE, Math.max(0, usableData.length - TEST_SIZE)),
     test_size: Math.max(0, usableData.length - Math.min(TRAIN_SIZE, usableData.length)),
     latest_result: usableData[usableData.length - 1] || null,
-    selected_method: best.test.method,
-    selected_weights: formatWeights(best.weights),
-    test_result: best.test,
-    leaderboard: evaluations.slice(0, 5).map((item) => item.test),
-    poltar: {
-      as: scores.as.map((item) => item.digit).join(" "),
-      kop: scores.kop.map((item) => item.digit).join(" "),
-      kepala: scores.kepala.map((item) => item.digit).join(" "),
-      ekor: scores.ekor.map((item) => item.digit).join(" ")
-    },
+    position_methods: positionMethods,
+    poltar,
     scores
   };
 }
