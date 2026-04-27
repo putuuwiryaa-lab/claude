@@ -82,8 +82,8 @@ export default function Home() {
       <div className="mx-auto max-w-6xl">
         <section className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-6">
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Angkanet Scanner</p>
-          <h1 className="text-4xl font-black">Poltar Walk Forward Engine v3</h1>
-          <p className="mt-3 text-slate-300">AS, KOP, KEPALA, dan EKOR dioptimasi independen. Tiap posisi memilih metode dan bobot sendiri dari walk-forward test 14 data terbaru.</p>
+          <h1 className="text-4xl font-black">Poltar Walk Forward Engine v4</h1>
+          <p className="mt-3 text-slate-300">Fitur inti: Position Frequency, Recency, Transition Markov, Delta Pattern, dan Cycle Due. AS, KOP, KEPALA, EKOR tetap dioptimasi independen.</p>
 
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             <select value={market} onChange={(e) => setMarket(e.target.value)} className="rounded-xl bg-slate-900 p-3">
@@ -119,10 +119,10 @@ export default function Home() {
                     <h2 className="mb-3 text-xl font-black">{item.title}: {method.weights.method}</h2>
                     <div className="grid gap-3 sm:grid-cols-5">
                       <Small label="Posisi" value={method.weights.position_frequency} />
-                      <Small label="Global" value={method.weights.global_frequency} />
                       <Small label="Recency" value={method.weights.recency} />
-                      <Small label="Absen" value={method.weights.gap_absen} />
-                      <Small label="Momentum" value={method.weights.momentum} />
+                      <Small label="Transisi" value={method.weights.transition_markov} />
+                      <Small label="Delta" value={method.weights.delta_pattern} />
+                      <Small label="Cycle" value={method.weights.cycle_due} />
                     </div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-5">
                       <Small label="Final" value={`${method.test.final_score}%`} />
