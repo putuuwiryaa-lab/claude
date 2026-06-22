@@ -1,6 +1,6 @@
 # Pure Cross Position Markov Scanner
 
-Next.js app untuk scan digit 4D berbasis Markov murni.
+Next.js app untuk scan digit berbasis Markov murni.
 
 Model sekarang tidak lagi memakai hybrid frequency, recency, delta, atau cycle untuk ranking utama.
 
