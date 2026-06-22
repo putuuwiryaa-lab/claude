@@ -84,7 +84,7 @@ export default function Home() {
         <section className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-6">
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Angkanet Scanner</p>
           <h1 className="text-4xl font-black">Pure Cross Position Markov</h1>
-          <p className="mt-3 text-slate-300">Skor digit dihitung dari semua jalur posisi terakhir menuju target posisi berikutnya. Contoh EKR 1 dinilai dari AS→EKR 1, KOP→EKR 1, KPL→EKR 1, dan EKR→EKR 1.</p>
+          <p className="mt-3 text-slate-300">Skor digit dihitung dari semua jalur posisi terakhir menuju target posisi berikutnya. Contoh EKR 1 dinilai dari AS ke EKR 1, KOP ke EKR 1, KPL ke EKR 1, dan EKR ke EKR 1.</p>
 
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             <select value={market} onChange={(e) => setMarket(e.target.value)} className="rounded-xl bg-slate-900 p-3">
