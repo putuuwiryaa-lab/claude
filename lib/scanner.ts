@@ -94,7 +94,6 @@ function rankCrossPositionMarkov(results: string[], targetPos: Position): RankIt
 
     if (totalTransition === 0) continue;
 
-    // Confidence menahan transisi yang sampelnya terlalu kecil agar tidak langsung mendominasi.
     const sourceConfidence = totalTransition / (totalTransition + 3);
 
     for (const digit of digits) {
@@ -183,6 +182,7 @@ export function scanPoltar4D(historyData: string) {
   const all = parseHistory(historyData);
   const fixedData = all.slice(-FIXED_LIMIT);
   const usableData = fixedData.length >= 30 ? fixedData : all;
+  const testStart = Math.min(TRAIN_SIZE, Math.max(1, usableData.length - TEST_SIZE));
 
   const positionMethods: Record<Position, { weights: ReturnType<typeof formatMarkovWeights>; test: TestResult; leaderboard: TestResult[] }> = {
     as: {} as any,
@@ -213,8 +213,8 @@ export function scanPoltar4D(historyData: string) {
     total_data: all.length,
     sample_used: usableData.length,
     fixed_limit: FIXED_LIMIT,
-    train_size: Math.min(TRAIN_SIZE, Math.max(0, usableData.length - TEST_SIZE)),
-    test_size: Math.max(0, usableData.length - Math.min(TRAIN_SIZE, usableData.length)),
+    train_size: testStart,
+    test_size: Math.max(0, usableData.length - testStart),
     latest_result: usableData[usableData.length - 1] || null,
     position_methods: positionMethods,
     poltar,
