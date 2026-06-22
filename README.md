@@ -6,12 +6,12 @@ Model sekarang tidak lagi memakai hybrid frequency, recency, delta, atau cycle u
 
 Core scoring:
 
-- AS target dihitung dari AS→AS, KOP→AS, KPL→AS, EKR→AS
-- KOP target dihitung dari AS→KOP, KOP→KOP, KPL→KOP, EKR→KOP
-- KPL target dihitung dari AS→KPL, KOP→KPL, KPL→KPL, EKR→KPL
-- EKR target dihitung dari AS→EKR, KOP→EKR, KPL→EKR, EKR→EKR
+- AS target dihitung dari AS ke AS, KOP ke AS, KPL ke AS, EKR ke AS
+- KOP target dihitung dari AS ke KOP, KOP ke KOP, KPL ke KOP, EKR ke KOP
+- KPL target dihitung dari AS ke KPL, KOP ke KPL, KPL ke KPL, EKR ke KPL
+- EKR target dihitung dari AS ke EKR, KOP ke EKR, KPL ke EKR, EKR ke EKR
 
-Contoh: digit EKR 1 tidak hanya dinilai dari EKR→EKR 1, tapi juga dari AS→EKR 1, KOP→EKR 1, dan KPL→EKR 1.
+Contoh: digit EKR 1 tidak hanya dinilai dari EKR ke EKR 1, tapi juga dari AS ke EKR 1, KOP ke EKR 1, dan KPL ke EKR 1.
 
 Run:
 
