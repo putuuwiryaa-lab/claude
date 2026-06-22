@@ -31,14 +31,15 @@ type Scan = {
     latest_result: string | null;
     position_methods: Record<Pos, PositionMethod>;
     poltar: Record<Pos, string>;
+    source_summary?: Record<Pos, string[]>;
   };
 };
 
 const labels: Array<{ key: Pos; title: string }> = [
   { key: "as", title: "AS" },
   { key: "kop", title: "KOP" },
-  { key: "kepala", title: "KEPALA" },
-  { key: "ekor", title: "EKOR" }
+  { key: "kepala", title: "KPL" },
+  { key: "ekor", title: "EKR" }
 ];
 
 export default function Home() {
@@ -82,8 +83,8 @@ export default function Home() {
       <div className="mx-auto max-w-6xl">
         <section className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-6">
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Angkanet Scanner</p>
-          <h1 className="text-4xl font-black">Poltar Walk Forward Engine v4</h1>
-          <p className="mt-3 text-slate-300">Fitur inti: Position Frequency, Recency, Transition Markov, Delta Pattern, dan Cycle Due. AS, KOP, KEPALA, EKOR tetap dioptimasi independen.</p>
+          <h1 className="text-4xl font-black">Pure Cross Position Markov</h1>
+          <p className="mt-3 text-slate-300">Skor digit dihitung dari semua jalur posisi terakhir menuju target posisi berikutnya. Contoh EKR 1 dinilai dari AS→EKR 1, KOP→EKR 1, KPL→EKR 1, dan EKR→EKR 1.</p>
 
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             <select value={market} onChange={(e) => setMarket(e.target.value)} className="rounded-xl bg-slate-900 p-3">
@@ -114,15 +115,15 @@ export default function Home() {
             <section className="mt-6 grid gap-4 md:grid-cols-2">
               {labels.map((item) => {
                 const method = scan.scan.position_methods[item.key];
+                const sourceRows = scan.scan.source_summary?.[item.key] || [];
                 return (
                   <div key={item.key} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <h2 className="mb-3 text-xl font-black">{item.title}: {method.weights.method}</h2>
-                    <div className="grid gap-3 sm:grid-cols-5">
-                      <Small label="Posisi" value={method.weights.position_frequency} />
-                      <Small label="Recency" value={method.weights.recency} />
-                      <Small label="Transisi" value={method.weights.transition_markov} />
-                      <Small label="Delta" value={method.weights.delta_pattern} />
-                      <Small label="Cycle" value={method.weights.cycle_due} />
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      <Small label="Source" value="AS/KOP/KPL/EKR" />
+                      <Small label="Target" value={item.title} />
+                      <Small label="Model" value="Markov 100%" />
+                      <Small label="Hybrid" value="OFF" />
                     </div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-5">
                       <Small label="Final" value={`${method.test.final_score}%`} />
@@ -130,6 +131,12 @@ export default function Home() {
                       <Small label="Top3" value={`${method.test.top3_hit_rate}%`} />
                       <Small label="Top5" value={`${method.test.top5_hit_rate}%`} />
                       <Small label="Stable" value={`${method.test.stability}%`} />
+                    </div>
+                    <div className="mt-4 rounded-xl bg-slate-900 p-3">
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-slate-400">Digit Scoring</div>
+                      <div className="grid gap-1 font-mono text-xs text-slate-200">
+                        {sourceRows.map((row) => <div key={row}>{row}</div>)}
+                      </div>
                     </div>
                   </div>
                 );
